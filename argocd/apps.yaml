@@ -2,18 +2,18 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: apps
-  namespace: argocd-system
+  namespace: ${ARGOCD_NAMESPACE}
 spec:
   project: default
   source:
-    repoURL: git@github.com:wnqueiroz/platform-engineering-backstack.git
+    repoURL: ${ARGOCD_REPO_URL}
     targetRevision: HEAD
     path: argocd/apps
     directory:
       recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd-system
+    namespace: ${ARGOCD_NAMESPACE}
   syncPolicy:
     automated:
       prune: true

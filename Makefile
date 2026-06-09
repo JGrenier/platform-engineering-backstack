@@ -1,5 +1,8 @@
 
-.PHONY: up down check_bins
+include .env
+export
+
+.PHONY: up down check_bins build-backstage setup-local-config
 
 check_bins:
 	@command -v kind >/dev/null 2>&1 || { echo >&2 "kind not found! Please install it before continuing."; exit 1; }
@@ -21,42 +24,57 @@ check_bins:
 		exit 1; \
 	fi
 
-up: check_bins
-	@echo "Creating environment..."
-	@if kind get clusters | grep -q "^platform$$"; then \
-		echo "Cluster 'platform' already exists. Skipping..."; \
+build-backstage:
+	@echo "Building Backstage image..."
+	@if docker image inspect $(BACKSTAGE_IMAGE) >/dev/null 2>&1; then \
+		echo "Docker image $(BACKSTAGE_IMAGE) already exists. Skipping build."; \
 	else \
-		kind create cluster --name platform; \
+		cd ./backstage && yarn install && yarn build:all && yarn build-image --tag $(BACKSTAGE_IMAGE) --no-cache && cd ..; \
+	fi
+	@echo "Loading Backstage image into kind cluster..."
+	@kind load docker-image $(BACKSTAGE_IMAGE) --name $(K8S_CLUSTER_NAME)
+
+up: check_bins
+	@echo "=== Phase 1: Cluster + ArgoCD (imperative) ==="
+	@if kind get clusters | grep -q "^$(K8S_CLUSTER_NAME)$$"; then \
+		echo "Cluster '$(K8S_CLUSTER_NAME)' already exists. Skipping..."; \
+	else \
+		kind create cluster --name $(K8S_CLUSTER_NAME); \
 	fi
 
-	@./.bootstrap/argocd/up.sh
-	@./.bootstrap/backstage/up.sh
-	@./.bootstrap/localstack/up.sh
-	@./.bootstrap/crossplane/up.sh
-	@./.bootstrap/crossview/up.sh
-	@./.bootstrap/kyverno/up.sh
+	@$(MAKE) build-backstage
 
-	@make setup-local-config
+	@./.bootstrap/argocd/up.sh
+
+	@echo "=== Phase 1b: Secrets (before ArgoCD sync) ==="
+	@./.bootstrap/create-secrets.sh
+
+	@echo "=== Phase 2: ArgoCD declarative sync ==="
+	@./.bootstrap/wait-for-sync.sh
+
+	@echo "=== Phase 3: Post-sync setup ==="
+	@./.bootstrap/port-forward.sh
+	@$(MAKE) setup-local-config
 
 	@echo
 	@echo "---------------------------------------------------------------------------------------------------------------------------"
-	@echo "Backstage is accessible at http://localhost:3000"
-	@echo "Argo CD is accessible at http://localhost:8080"
-	@echo "Crossview is accessible at http://localhost:3001"
-	@echo "LocalStack is accessible at http://localhost:4566 (Manage through the platform at: https://app.localstack.cloud/instances)"
+	@echo "Backstage is accessible at http://localhost:$(BACKSTAGE_PORT)"
+	@echo "Argo CD is accessible at http://localhost:$(ARGOCD_PORT)"
+	@echo "Crossview is accessible at http://localhost:$(CROSSVIEW_PORT)"
+	@echo "LocalStack is accessible at http://localhost:$(LOCALSTACK_PORT) (Manage through the platform at: https://app.localstack.cloud/instances)"
 
 down: check_bins
 	@echo "Deleting environment..."
-	@if kind get clusters | grep -q "^platform$$"; then \
-		kind delete cluster --name platform; \
+	@if kind get clusters | grep -q "^$(K8S_CLUSTER_NAME)$$"; then \
+		kind delete cluster --name $(K8S_CLUSTER_NAME); \
 	else \
-		echo "Cluster 'platform' not found. Skipping..."; \
+		echo "Cluster '$(K8S_CLUSTER_NAME)' not found. Skipping..."; \
 	fi
 
 setup-local-config: check_bins
 	@echo "Updating app-config.local.yaml..."
 	@test -f backstage/app-config.local.yaml || echo "{}" > backstage/app-config.local.yaml
-	@export SERVICE_ACCOUNT_TOKEN=$$(kubectl get secret -n backstage-system backstage-token -o jsonpath='{.data.token}' | base64 --decode); \
+	@export SERVICE_ACCOUNT_TOKEN=$$(kubectl get secret -n $(BACKSTAGE_NAMESPACE) backstage-token -o jsonpath='{.data.token}' | base64 --decode); \
 	export CLUSTER_URL=$$(kubectl cluster-info | grep 'Kubernetes control plane' | awk '{print $$NF}'); \
 	FILE="backstage/app-config.local.yaml"; \
 	yq -i '.kubernetes.clusterLocatorMethods[0].clusters[0].serviceAccountToken = strenv(SERVICE_ACCOUNT_TOKEN)' $$FILE; \

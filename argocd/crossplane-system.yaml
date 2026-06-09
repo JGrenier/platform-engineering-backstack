@@ -2,29 +2,29 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: crossplane-system
-  namespace: argocd-system
+  namespace: ${ARGOCD_NAMESPACE}
 spec:
   generators:
     - list:
         elements:
           - name: providers
             path: crossplane/providers
-            wave: "0"
+            wave: "2"
           - name: providers-config
             path: crossplane/providers-config
-            wave: "1"
+            wave: "3"
           - name: functions
             path: crossplane/functions
-            wave: "2"
+            wave: "4"
           - name: compositions
             path: crossplane/compositions/aws
-            wave: "3"
+            wave: "5"
           - name: xrds
             path: crossplane/xrds
-            wave: "4"
+            wave: "6"
           - name: claims
             path: crossplane/claims
-            wave: "5"
+            wave: "7"
 
   template:
     metadata:
@@ -34,7 +34,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: git@github.com:wnqueiroz/platform-engineering-backstack.git
+        repoURL: ${ARGOCD_REPO_URL}
         targetRevision: HEAD
         path: "{{path}}"
         directory:

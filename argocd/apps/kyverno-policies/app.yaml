@@ -1,30 +1,22 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: crossview-app
+  name: kyverno-policies
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "7"
 spec:
   project: default
   source:
     repoURL: git@gitlab.eks.tools.icx.foundever.com:jgren008/plateform-engineering.git
     targetRevision: HEAD
-    path: .bootstrap/crossview/manifests
+    path: kyverno
     directory:
       recurse: true
-  ignoreDifferences:
-    - group: ""
-      kind: Secret
-      name: crossview-secrets
-      namespace: crossview-system
   destination:
     server: https://kubernetes.default.svc
-    namespace: crossview-system
+    namespace: kyverno-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - Replace=true
