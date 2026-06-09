@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@gitlab.eks.tools.icx.foundever.com:jgren008/plateform-engineering.git
+    repoURL: git@github.com:JGrenier/platform-engineering-backstack.git
     targetRevision: HEAD
     path: .bootstrap/backstage/manifests
     directory:
