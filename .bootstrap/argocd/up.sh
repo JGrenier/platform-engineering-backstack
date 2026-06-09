@@ -14,9 +14,12 @@ if [[ "$(kubectl config current-context)" != "$K8S_LOCAL_CONTEXT_NAME" ]]; then
     }
 fi
 
-NS="$ARGOCD_NAMESPACE"
+NS=argocd
+PORT=8080
+
+# NS="$ARGOCD_NAMESPACE"
 MANIFESTS_DIR="$SCRIPT_DIR/manifests"
-PORT="$ARGOCD_PORT"
+# PORT="$ARGOCD_PORT"
 
 echo "Adding Argo CD Helm repository..."
 helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
@@ -28,7 +31,7 @@ helm upgrade --install argocd \
     --create-namespace argo/argo-cd
 
 echo "Waiting for Argo CD deployment to be ready..."
-kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n "$NS" || {
+kubectl wait --for=condition=available --timeout=240s deployment/argocd-server -n "$NS" || {
     echo "Argo CD deployment is not ready"
     exit 1
 }
@@ -69,7 +72,8 @@ fi
 
 if ! argocd repo list | grep -q "$ARGOCD_REPO_URL"; then
     echo "Adding Git repo to Argo CD..."
-    argocd repo add "$ARGOCD_REPO_URL" --ssh-private-key-path "$SSH_PRIVATE_KEY_PATH"
+    # argocd repo add "$ARGOCD_REPO_URL" --ssh-private-key-path "$SSH_PRIVATE_KEY_PATH"
+    argocd repo add "git@github.com:JGrenier/platform-engineering-backstack.git" --ssh-private-key-path ~/.ssh/id_ed25519
 else
     echo "Git repo already added."
 fi
